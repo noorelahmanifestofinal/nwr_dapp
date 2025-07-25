@@ -23,19 +23,70 @@ export default function App() {
   const [status, setStatus] = useState("");
   const [userStats, setUserStats] = useState(null);
 
-  useEffect(() => {
-    const init = async () => {
-      if (window.ethereum) {
+  const expectedChainId = "0x38"; // BNB Smart Chain Mainnet
+
+  const connectWallet = async () => {
+    if (window.ethereum) {
+      try {
+        await window.ethereum.request({ method: "eth_requestAccounts" });
+
         const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const s = provider.getSigner();
-        setSigner(s);
-        const addr = await s.getAddress();
+        const network = await provider.getNetwork();
+
+        // Auto switch to expected chain
+        if (network.chainId !== parseInt(expectedChainId, 16)) {
+          try {
+            await window.ethereum.request({
+              method: "wallet_switchEthereumChain",
+              params: [{ chainId: expectedChainId }],
+            });
+          } catch (switchError) {
+            if (switchError.code === 4902) {
+              try {
+                await window.ethereum.request({
+                  method: "wallet_addEthereumChain",
+                  params: [{
+                    chainId: expectedChainId,
+                    chainName: "BNB Smart Chain",
+                    nativeCurrency: {
+                      name: "BNB",
+                      symbol: "BNB",
+                      decimals: 18,
+                    },
+                    rpcUrls: ["https://bsc-dataseed.binance.org/"],
+                    blockExplorerUrls: ["https://bscscan.com"],
+                  }],
+                });
+              } catch (addError) {
+                alert("❌ Failed to add BSC network.");
+                return;
+              }
+            } else {
+              alert("❌ Could not switch network.");
+              return;
+            }
+          }
+        }
+
+        const signer = provider.getSigner();
+        const addr = await signer.getAddress();
+        setSigner(signer);
         setAddress(addr);
-        const c = new ethers.Contract(CONTRACT_ADDRESS, ABI, s);
+
+        const c = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
         setContract(c);
+        setStatus("✅ Wallet connected.");
+      } catch (err) {
+        console.error(err);
+        setStatus("❌ Wallet connection failed.");
       }
-    };
-    init();
+    } else {
+      alert("🦊 Please install MetaMask.");
+    }
+  };
+
+  useEffect(() => {
+    connectWallet();
   }, []);
 
   const endorseUser = async () => {
@@ -81,6 +132,10 @@ export default function App() {
   return (
     <div className="p-4 max-w-md mx-auto bg-white shadow-lg rounded-xl mt-10">
       <h2 className="text-xl font-bold mb-4 text-center">🌱 Endorse Levels</h2>
+
+      <p className="text-sm text-gray-600 text-center mb-2">
+        {address ? `Connected: ${address.slice(0, 6)}...${address.slice(-4)}` : "Not connected"}
+      </p>
 
       <input
         placeholder="User Address"
