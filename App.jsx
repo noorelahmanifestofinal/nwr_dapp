@@ -4,13 +4,14 @@ import Web3Modal from "web3modal";
 import WalletConnectProvider from "@walletconnect/web3-provider";
 import CoinbaseWalletSDK from "@coinbase/wallet-sdk";
 
+// TONKeeper SDK
+const tonkeeperLink = "https://app.tonkeeper.com/ton-connect";
+
 // SafePal injects `window.safepalProvider`
-const detectSafePal = () => {
-  if (typeof window !== "undefined" && window.safepalProvider) {
-    return window.safepalProvider;
-  }
-  return null;
-};
+const detectSafePal = () =>
+  typeof window !== "undefined" && window.safepalProvider
+    ? window.safepalProvider
+    : null;
 
 export default function App() {
   const [provider, setProvider] = useState(null);
@@ -19,16 +20,14 @@ export default function App() {
   const [network, setNetwork] = useState("");
   const [status, setStatus] = useState("No wallet detected ❌");
 
-  const connectWallet = async () => {
+  const connectEVMWallet = async () => {
     try {
       let instance;
 
-      // 1. Try SafePal if injected
-      const safePalProvider = detectSafePal();
-      if (safePalProvider) {
-        instance = safePalProvider;
+      const safePal = detectSafePal();
+      if (safePal) {
+        instance = safePal;
       } else {
-        // 2. Use Web3Modal for MetaMask, Coinbase, Bitget, WalletConnect
         const web3Modal = new Web3Modal({
           cacheProvider: false,
           providerOptions: {
@@ -45,7 +44,7 @@ export default function App() {
               package: CoinbaseWalletSDK,
               options: {
                 appName: "NWR dApp",
-                rpc: "https://polygon-rpc.com", // default fallback
+                rpc: "https://polygon-rpc.com",
               },
             },
             injected: {
@@ -71,7 +70,7 @@ export default function App() {
       setAddress(userAddress);
       setBalance(ethers.utils.formatEther(userBalance));
       setNetwork(networkInfo.name);
-      setStatus("✅ Connected");
+      setStatus("✅ EVM Connected");
 
       if (networkInfo.chainId === 137) {
         console.log("Using Polygon (P)");
@@ -81,9 +80,13 @@ export default function App() {
         console.warn("Unsupported network:", networkInfo.chainId);
       }
     } catch (err) {
-      console.error("Wallet connection failed:", err);
+      console.error("EVM Wallet connection failed:", err);
       setStatus("❌ Connection failed");
     }
+  };
+
+  const connectTONKeeper = () => {
+    window.location.href = tonkeeperLink;
   };
 
   return (
@@ -99,12 +102,20 @@ export default function App() {
           <p><strong>Network:</strong> {network}</p>
         </div>
       )}
-      <button
-        onClick={connectWallet}
-        className="bg-white text-black font-semibold px-4 py-2 rounded hover:bg-gray-200 transition"
-      >
-        {address ? "Wallet Connected ✅" : "Connect Wallet"}
-      </button>
+      <div className="flex gap-4 flex-col sm:flex-row">
+        <button
+          onClick={connectEVMWallet}
+          className="bg-white text-black font-semibold px-4 py-2 rounded hover:bg-gray-200 transition"
+        >
+          Connect MetaMask / Coinbase / Bitget / SafePal
+        </button>
+        <button
+          onClick={connectTONKeeper}
+          className="bg-blue-500 text-white font-semibold px-4 py-2 rounded hover:bg-blue-600 transition"
+        >
+          Connect TONKeeper 🔵
+        </button>
+      </div>
     </div>
   );
 }
