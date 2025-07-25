@@ -10,9 +10,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@wagmi/connectors": "^5.9.0",
+    "@wagmi/core": "^2.18.0",
+    "@walletconnect/ethereum-provider": "^2.21.5",
     "ethers": "^6.15.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "viem": "^2.33.1",
+    "wagmi": "^2.16.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",

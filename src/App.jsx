@@ -1,5 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { ethers } from "ethers";
+import {
+  WagmiConfig,
+  configureChains,
+  createConfig,
+  useAccount,
+  useConnect,
+  useDisconnect,
+} from "wagmi";
+import { bsc } from "wagmi/chains";
+import { InjectedConnector } from "wagmi/connectors/injected";
+import { WalletConnectConnector } from "wagmi/connectors/walletConnect";
+import { jsonRpcProvider } from "wagmi/providers/jsonRpc";
 import ABI from "./VaultABI.json";
 
 const CONTRACT_ADDRESS = "0xAa8155FE44F791EAFd06933cA76119D9d62E9DE0";
@@ -14,80 +26,50 @@ const daoLevelNames = [
   "Visionary", "Strategist", "Shaper", "Guardian", "Beacon", "Council Pillar"
 ];
 
-export default function App() {
+// ✅ Configure BNB Chain
+const { chains, publicClient } = configureChains(
+  [bsc],
+  [jsonRpcProvider({ rpc: () => ({ http: "https://bsc-dataseed.binance.org/" }) })]
+);
+
+// ✅ Wagmi config with your WalletConnect project ID
+const wagmiConfig = createConfig({
+  autoConnect: true,
+  connectors: [
+    new InjectedConnector({ chains }), // MetaMask, SafePal
+    new WalletConnectConnector({
+      chains,
+      options: {
+        projectId: "28dccada18f25b4ae93eaf1f55bf7e62", // 👈 Your WalletConnect Project ID
+        showQrModal: true,
+      },
+    }),
+  ],
+  publicClient,
+});
+
+function WalletApp() {
+  const { address, isConnected } = useAccount();
+  const { connect, connectors } = useConnect();
+  const { disconnect } = useDisconnect();
+
   const [contract, setContract] = useState(null);
   const [signer, setSigner] = useState(null);
-  const [address, setAddress] = useState("");
   const [userInput, setUserInput] = useState("");
   const [level, setLevel] = useState("");
   const [status, setStatus] = useState("");
   const [userStats, setUserStats] = useState(null);
 
-  const expectedChainId = "0x38"; // BNB Smart Chain Mainnet
-
-  const connectWallet = async () => {
-    if (window.ethereum) {
-      try {
-        await window.ethereum.request({ method: "eth_requestAccounts" });
-
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const network = await provider.getNetwork();
-
-        // Auto switch to expected chain
-        if (network.chainId !== parseInt(expectedChainId, 16)) {
-          try {
-            await window.ethereum.request({
-              method: "wallet_switchEthereumChain",
-              params: [{ chainId: expectedChainId }],
-            });
-          } catch (switchError) {
-            if (switchError.code === 4902) {
-              try {
-                await window.ethereum.request({
-                  method: "wallet_addEthereumChain",
-                  params: [{
-                    chainId: expectedChainId,
-                    chainName: "BNB Smart Chain",
-                    nativeCurrency: {
-                      name: "BNB",
-                      symbol: "BNB",
-                      decimals: 18,
-                    },
-                    rpcUrls: ["https://bsc-dataseed.binance.org/"],
-                    blockExplorerUrls: ["https://bscscan.com"],
-                  }],
-                });
-              } catch (addError) {
-                alert("❌ Failed to add BSC network.");
-                return;
-              }
-            } else {
-              alert("❌ Could not switch network.");
-              return;
-            }
-          }
-        }
-
-        const signer = provider.getSigner();
-        const addr = await signer.getAddress();
+  useEffect(() => {
+    if (window.ethereum && isConnected) {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      provider.getSigner().then((signer) => {
         setSigner(signer);
-        setAddress(addr);
-
         const c = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
         setContract(c);
-        setStatus("✅ Wallet connected.");
-      } catch (err) {
-        console.error(err);
-        setStatus("❌ Wallet connection failed.");
-      }
-    } else {
-      alert("🦊 Please install MetaMask.");
+      });
     }
-  };
-
-  useEffect(() => {
-    connectWallet();
-  }, []);
+  }, [isConnected]);
 
   const endorseUser = async () => {
     if (!contract || !userInput || !level) return;
@@ -121,7 +103,7 @@ export default function App() {
         userLevel: stats[0],
         daoLevel: stats[1],
         given: stats[2].toString(),
-        helped: stats[3].toString()
+        helped: stats[3].toString(),
       });
     } catch (err) {
       console.error(err);
@@ -134,8 +116,18 @@ export default function App() {
       <h2 className="text-xl font-bold mb-4 text-center">🌱 Endorse Levels</h2>
 
       <p className="text-sm text-gray-600 text-center mb-2">
-        {address ? `Connected: ${address.slice(0, 6)}...${address.slice(-4)}` : "Not connected"}
+        {isConnected ? `Connected: ${address.slice(0, 6)}...${address.slice(-4)}` : "Not connected"}
       </p>
+
+      {!isConnected && connectors.map((connector) => (
+        <button
+          key={connector.id}
+          onClick={() => connect({ connector })}
+          className="w-full bg-black text-white px-4 py-2 rounded mb-2"
+        >
+          Connect with {connector.name}
+        </button>
+      ))}
 
       <input
         placeholder="User Address"
@@ -193,6 +185,23 @@ export default function App() {
       {status && (
         <p className="text-center text-sm text-gray-700 mt-4">{status}</p>
       )}
+
+      {isConnected && (
+        <button
+          onClick={disconnect}
+          className="w-full bg-red-600 text-white px-4 py-2 mt-2 rounded hover:bg-red-700"
+        >
+          🔌 Disconnect
+        </button>
+      )}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <WagmiConfig config={wagmiConfig}>
+      <WalletApp />
+    </WagmiConfig>
   );
 }
